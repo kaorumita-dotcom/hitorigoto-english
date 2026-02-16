@@ -757,7 +757,7 @@ function toggleRecording() {
     }
 }
 
-function startRecording() {
+async function startRecording() {
     // Check API key
     const apiKey = localStorage.getItem('anthropic_api_key');
     if (!apiKey) {
@@ -768,6 +768,23 @@ function startRecording() {
 
     if (!SpeechRecognition) {
         showError('お使いのブラウザは音声認識に対応していません。Google Chromeをお使いください。');
+        return;
+    }
+
+    // Request microphone permission explicitly
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Stop the stream immediately - we just needed the permission
+        stream.getTracks().forEach(track => track.stop());
+    } catch (err) {
+        console.error('Microphone permission error:', err);
+        if (err.name === 'NotAllowedError') {
+            showError('マイクの使用が許可されていません。ブラウザの設定でマイクを許可してください。');
+        } else if (err.name === 'NotFoundError') {
+            showError('マイクが見つかりません。マイクが接続されているか確認してください。');
+        } else {
+            showError(`マイクエラー: ${err.message}`);
+        }
         return;
     }
 
