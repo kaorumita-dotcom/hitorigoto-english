@@ -4,19 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>独り言英会話 - English Speaking Practice</title>
+    <meta name="description" content="1分間の英語スピーキング練習アプリ">
+    <meta name="theme-color" content="#2856a3">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg: #f7f5f0;
+            --bg: #f0f4fa;
             --card: #ffffff;
-            --primary: #2d5a27;
-            --primary-light: #e8f0e6;
-            --primary-dark: #1a3a16;
-            --accent: #d4853f;
-            --accent-light: #fdf0e4;
+            --primary: #2856a3;
+            --primary-light: #e4ecf7;
+            --primary-dark: #1a3b6e;
+            --accent: #e8a84c;
+            --accent-light: #fdf3e0;
             --text: #2c2c2c;
             --text-light: #6b6b6b;
-            --border: #e5e0d8;
+            --border: #d8dfe8;
             --recording: #c0392b;
             --recording-light: #fdeaea;
             --shadow: 0 2px 12px rgba(0,0,0,0.06);
@@ -28,16 +33,6 @@
         header { text-align: center; padding: 30px 0 20px; }
         header h1 { font-size: 1.6rem; font-weight: 700; color: var(--primary-dark); }
         header h1 span { display: block; font-size: 0.85rem; font-weight: 400; color: var(--text-light); margin-top: 4px; letter-spacing: 0.05em; }
-        .settings-panel { background: var(--card); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; box-shadow: var(--shadow); border: 1px solid var(--border); }
-        .settings-panel summary { font-weight: 600; font-size: 0.9rem; color: var(--text-light); cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; }
-        .settings-panel summary::before { content: '⚙️'; }
-        .settings-panel[open] .settings-content { margin-top: 16px; }
-        .api-input-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
-        .api-input-group label { font-size: 0.82rem; font-weight: 500; color: var(--text-light); }
-        .api-input-group input { width: 100%; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 10px; font-family: 'DM Sans', monospace; font-size: 0.85rem; transition: border-color 0.2s; background: var(--bg); }
-        .api-input-group input:focus { outline: none; border-color: var(--primary); }
-        .api-status { font-size: 0.78rem; margin-top: 4px; }
-        .api-status.saved { color: var(--primary); }
         .topic-card { background: var(--card); border-radius: var(--radius); padding: 24px; margin-bottom: 16px; box-shadow: var(--shadow); border: 1px solid var(--border); text-align: center; }
         .topic-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent); font-weight: 600; margin-bottom: 10px; }
         .topic-text { font-size: 1.15rem; font-weight: 600; color: var(--text); line-height: 1.5; }
@@ -49,9 +44,9 @@
         .timer { font-size: 3.2rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--primary-dark); margin-bottom: 6px; }
         .recording-area.is-recording .timer { color: var(--recording); }
         .timer-label { font-size: 0.8rem; color: var(--text-light); margin-bottom: 24px; }
-        .record-btn { width: 80px; height: 80px; border-radius: 50%; border: none; background: var(--primary); color: white; font-size: 1.8rem; cursor: pointer; transition: all 0.25s; display: flex; align-items: center; justify-content: center; margin: 0 auto; box-shadow: 0 4px 16px rgba(45, 90, 39, 0.3); }
-        .record-btn:hover { transform: scale(1.06); }
-        .record-btn.recording { background: var(--recording); animation: pulse 1.5s infinite; }
+        .record-btn { width: 80px; height: 80px; border-radius: 50%; border: none; background: var(--primary); color: white; font-size: 1.8rem; cursor: pointer; transition: all 0.25s; display: flex; align-items: center; justify-content: center; margin: 0 auto; box-shadow: 0 4px 16px rgba(40, 86, 163, 0.3); }
+        .record-btn:hover { transform: scale(1.06); box-shadow: 0 6px 24px rgba(40, 86, 163, 0.4); }
+        .record-btn.recording { background: var(--recording); box-shadow: 0 4px 16px rgba(192, 57, 43, 0.3); animation: pulse 1.5s infinite; }
         .record-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
         @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(192, 57, 43, 0.3); } 50% { box-shadow: 0 0 0 14px rgba(192, 57, 43, 0); } }
         .record-btn-label { margin-top: 14px; font-size: 0.85rem; font-weight: 500; color: var(--text-light); }
@@ -81,7 +76,7 @@
         .loading-dots span:nth-child(3) { animation-delay: 0.3s; }
         @keyframes loadBounce { 0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1); opacity: 1; } }
         .loading-text { margin-top: 12px; font-size: 0.85rem; color: var(--text-light); }
-        .try-again-btn { display: block; width: 100%; padding: 16px; background: var(--primary); color: white; border: none; border-radius: var(--radius); font-size: 1rem; font-weight: 600; font-family: 'DM Sans', 'Noto Sans JP', sans-serif; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 16px rgba(45, 90, 39, 0.2); }
+        .try-again-btn { display: block; width: 100%; padding: 16px; background: var(--primary); color: white; border: none; border-radius: var(--radius); font-size: 1rem; font-weight: 600; font-family: 'DM Sans', 'Noto Sans JP', sans-serif; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 16px rgba(40, 86, 163, 0.2); }
         .try-again-btn:hover { background: var(--primary-dark); transform: translateY(-1px); }
         .error-msg { background: var(--recording-light); border: 1px solid var(--recording); border-radius: 10px; padding: 14px; font-size: 0.85rem; color: var(--recording); margin-bottom: 12px; display: none; }
         .error-msg.visible { display: block; }
@@ -94,22 +89,6 @@
     <header>
         <h1>🗣️ 独り言英会話<span>English Speaking Practice</span></h1>
     </header>
-
-    <details class="settings-panel" id="settingsPanel">
-        <summary>API設定</summary>
-        <div class="settings-content">
-            <div class="api-input-group">
-                <label for="apiKey">Anthropic API Key（フィードバック用）</label>
-                <input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off">
-                <div class="api-status" id="apiStatus"></div>
-            </div>
-            <div class="api-input-group">
-                <label for="openaiKey">OpenAI API Key（音声認識用）</label>
-                <input type="password" id="openaiKey" placeholder="sk-..." autocomplete="off">
-                <div class="api-status" id="openaiStatus"></div>
-            </div>
-        </div>
-    </details>
 
     <div class="topic-card">
         <div class="topic-label">Today's Topic</div>
@@ -144,7 +123,7 @@
                 <div class="stat-label">CEFRレベル</div>
             </div>
         </div>
-        <div class="result-card" id="feedbackCard">
+        <div class="result-card">
             <h3>📝 フィードバック</h3>
             <div id="feedbackContent"></div>
         </div>
@@ -159,6 +138,14 @@
 </div>
 
 <script>
+// ============================================================
+// Configuration - Cloudflare Worker proxy URL
+// ============================================================
+const API_BASE = 'https://hitorigoto-api.kaorumita.workers.dev';
+
+// ============================================================
+// Topics
+// ============================================================
 const topics = [
     { ja: "好きな映画やテレビ番組", en: "Your favorite movie or TV show" },
     { ja: "週末の過ごし方", en: "How you spend your weekends" },
@@ -186,23 +173,9 @@ let currentTopicIndex = -1;
 function shuffleTopics() { for (let i = topics.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [topics[i], topics[j]] = [topics[j], topics[i]]; } }
 function changeTopic() { currentTopicIndex = (currentTopicIndex + 1) % topics.length; if (currentTopicIndex === 0) shuffleTopics(); document.getElementById('topicText').textContent = topics[currentTopicIndex].ja; document.getElementById('topicTextEn').textContent = topics[currentTopicIndex].en; }
 
-// API Keys
-const apiKeyInput = document.getElementById('apiKey');
-const openaiKeyInput = document.getElementById('openaiKey');
-const settingsPanel = document.getElementById('settingsPanel');
-
-function loadKeys() {
-    const ak = localStorage.getItem('anthropic_api_key');
-    const ok = localStorage.getItem('openai_api_key');
-    if (ak) { apiKeyInput.value = ak; document.getElementById('apiStatus').textContent = '✅ 保存済み'; document.getElementById('apiStatus').className = 'api-status saved'; }
-    if (ok) { openaiKeyInput.value = ok; document.getElementById('openaiStatus').textContent = '✅ 保存済み'; document.getElementById('openaiStatus').className = 'api-status saved'; }
-    if (!ak || !ok) settingsPanel.open = true;
-}
-
-apiKeyInput.addEventListener('input', () => { const k = apiKeyInput.value.trim(); if (k.startsWith('sk-ant-')) { localStorage.setItem('anthropic_api_key', k); document.getElementById('apiStatus').textContent = '✅ 保存済み'; document.getElementById('apiStatus').className = 'api-status saved'; } });
-openaiKeyInput.addEventListener('input', () => { const k = openaiKeyInput.value.trim(); if (k.startsWith('sk-')) { localStorage.setItem('openai_api_key', k); document.getElementById('openaiStatus').textContent = '✅ 保存済み'; document.getElementById('openaiStatus').className = 'api-status saved'; } });
-
+// ============================================================
 // Recording
+// ============================================================
 let mediaRecorder = null, audioChunks = [], audioStream = null, isRecording = false;
 let timerInterval = null, timeLeft = 60;
 let audioContext = null, analyser = null, animFrameId = null;
@@ -210,19 +183,16 @@ let audioContext = null, analyser = null, animFrameId = null;
 function toggleRecording() { isRecording ? stopRecording() : startRecording(); }
 
 async function startRecording() {
-    const ak = localStorage.getItem('anthropic_api_key');
-    const ok = localStorage.getItem('openai_api_key');
-    if (!ak || !ok) { showError('APIキーを両方設定してください。'); settingsPanel.open = true; return; }
     hideError();
 
     try {
         audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (err) {
-        showError(err.name === 'NotAllowedError' ? 'マイクの使用が許可されていません。' : `マイクエラー: ${err.message}`);
+        showError(err.name === 'NotAllowedError' ? 'マイクの使用が許可されていません。ブラウザの設定でマイクを許可してください。' : `マイクエラー: ${err.message}`);
         return;
     }
 
-    // Audio level
+    // Audio level visualization
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
     analyser = audioContext.createAnalyser();
     audioContext.createMediaStreamSource(audioStream).connect(analyser);
@@ -235,8 +205,8 @@ async function startRecording() {
     audioChunks = [];
     const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
     mediaRecorder = new MediaRecorder(audioStream, mime ? {mimeType: mime} : {});
-    mediaRecorder.ondataavailable = e => { console.log('Audio chunk received:', e.data.size, 'bytes'); if (e.data.size > 0) audioChunks.push(e.data); };
-    mediaRecorder.onstop = () => { console.log('MediaRecorder stopped. Total chunks:', audioChunks.length, 'Total size:', audioChunks.reduce((s,c)=>s+c.size,0)); processRecording(); };
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+    mediaRecorder.onstop = () => processRecording();
     mediaRecorder.onerror = e => { console.error('MediaRecorder error:', e); };
     mediaRecorder.start();
     isRecording = true;
@@ -269,6 +239,9 @@ function stopRecording() {
     document.getElementById('recordBtnLabel').textContent = '処理中...';
 }
 
+// ============================================================
+// Processing
+// ============================================================
 async function processRecording() {
     const elapsed = 60 - timeLeft;
     if (audioChunks.length === 0) { showError('音声が録音できませんでした。'); resetButton(); return; }
@@ -277,7 +250,6 @@ async function processRecording() {
     document.getElementById('processingText').textContent = 'Whisper AIで文字起こし中...';
 
     const blob = new Blob(audioChunks, { type: audioChunks[0].type || 'audio/webm' });
-    console.log('Audio blob created:', blob.size, 'bytes, type:', blob.type);
 
     try {
         const transcript = await transcribeWhisper(blob);
@@ -292,52 +264,28 @@ async function processRecording() {
     }
 }
 
+// ============================================================
+// API calls via Cloudflare Worker proxy
+// ============================================================
 async function transcribeWhisper(blob) {
-    const key = localStorage.getItem('openai_api_key');
     const fd = new FormData();
     fd.append('file', blob, 'recording.webm');
     fd.append('model', 'whisper-1');
     fd.append('language', 'en');
     fd.append('response_format', 'text');
 
-    const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-        method: 'POST', headers: { 'Authorization': `Bearer ${key}` }, body: fd
+    const res = await fetch(API_BASE + '/transcribe', {
+        method: 'POST',
+        body: fd
     });
-    if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.error?.message || `Whisper Error: ${res.status}`); }
+    if (!res.ok) {
+        const e = await res.json().catch(()=>({}));
+        throw new Error(e.error || `音声認識エラー: ${res.status}`);
+    }
     return await res.text();
 }
 
-function showResults(transcript, elapsed) {
-    const wc = countWords(transcript);
-    const wpm = elapsed > 0 ? Math.round((wc / elapsed) * 60) : 0;
-    const cefr = estimateCEFR(wpm, transcript);
-
-    document.getElementById('processingCard').classList.remove('visible');
-    document.getElementById('resultsSection').classList.add('visible');
-    document.getElementById('wpmValue').textContent = wpm;
-    document.getElementById('cefrValue').textContent = cefr;
-    document.getElementById('finalTranscript').textContent = transcript;
-    document.getElementById('feedbackContent').innerHTML = '<div style="text-align:center"><div class="loading-dots"><span></span><span></span><span></span></div><div class="loading-text">AIがフィードバックを生成中...</div></div>';
-
-    generateFeedback(transcript, wpm, cefr);
-    resetButton();
-    document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-function countWords(t) { return t.trim().split(/\s+/).filter(w=>w.length>0).length; }
-
-function estimateCEFR(wpm, transcript) {
-    const wc = countWords(transcript), uw = new Set(transcript.toLowerCase().split(/\s+/)).size;
-    const ld = uw / Math.max(wc, 1), awl = transcript.replace(/\s+/g,'').length / Math.max(wc, 1);
-    let s = 0;
-    if (wpm >= 130) s += 5; else if (wpm >= 110) s += 4; else if (wpm >= 90) s += 3; else if (wpm >= 60) s += 2; else if (wpm >= 30) s += 1;
-    if (ld >= 0.75) s += 3; else if (ld >= 0.6) s += 2; else if (ld >= 0.45) s += 1;
-    if (awl >= 5.5) s += 2; else if (awl >= 4.5) s += 1;
-    if (s >= 9) return 'B2'; if (s >= 7) return 'B1'; if (s >= 5) return 'A2'; if (s >= 3) return 'A1'; return 'Pre-A1';
-}
-
 async function generateFeedback(transcript, wpm, cefr) {
-    const apiKey = localStorage.getItem('anthropic_api_key');
     const topicJa = document.getElementById('topicText').textContent;
     const topicEn = document.getElementById('topicTextEn').textContent;
 
@@ -367,20 +315,52 @@ ${transcript}
 重要：good_pointsではスピーチの具体的な内容に必ず言及。grammar_notesでは文字起こしから具体的に引用して修正案を示す。テンプレート的なフィードバックは避ける。`;
 
     try {
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
+        const res = await fetch(API_BASE + '/feedback', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-            body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1024, messages: [{ role: 'user', content: prompt }] })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt })
         });
-        if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.error?.message || `API Error: ${res.status}`); }
+        if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.error || `フィードバックエラー: ${res.status}`); }
         const data = await res.json();
-        const text = data.content[0].text;
+        const text = data.text;
         const m = text.match(/\{[\s\S]*\}/);
         if (!m) throw new Error('Invalid format');
         displayFeedback(JSON.parse(m[0]));
     } catch (err) {
         document.getElementById('feedbackContent').innerHTML = `<p style="color:var(--recording);font-size:0.85rem;">フィードバック生成エラー: ${err.message}</p>`;
     }
+}
+
+// ============================================================
+// Results display
+// ============================================================
+function showResults(transcript, elapsed) {
+    const wc = countWords(transcript);
+    const wpm = elapsed > 0 ? Math.round((wc / elapsed) * 60) : 0;
+    const cefr = estimateCEFR(wpm, transcript);
+
+    document.getElementById('processingCard').classList.remove('visible');
+    document.getElementById('resultsSection').classList.add('visible');
+    document.getElementById('wpmValue').textContent = wpm;
+    document.getElementById('cefrValue').textContent = cefr;
+    document.getElementById('finalTranscript').textContent = transcript;
+    document.getElementById('feedbackContent').innerHTML = '<div style="text-align:center"><div class="loading-dots"><span></span><span></span><span></span></div><div class="loading-text">AIがフィードバックを生成中...</div></div>';
+
+    generateFeedback(transcript, wpm, cefr);
+    resetButton();
+    document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function countWords(t) { return t.trim().split(/\s+/).filter(w=>w.length>0).length; }
+
+function estimateCEFR(wpm, transcript) {
+    const wc = countWords(transcript), uw = new Set(transcript.toLowerCase().split(/\s+/)).size;
+    const ld = uw / Math.max(wc, 1), awl = transcript.replace(/\s+/g,'').length / Math.max(wc, 1);
+    let s = 0;
+    if (wpm >= 130) s += 5; else if (wpm >= 110) s += 4; else if (wpm >= 90) s += 3; else if (wpm >= 60) s += 2; else if (wpm >= 30) s += 1;
+    if (ld >= 0.75) s += 3; else if (ld >= 0.6) s += 2; else if (ld >= 0.45) s += 1;
+    if (awl >= 5.5) s += 2; else if (awl >= 4.5) s += 1;
+    if (s >= 9) return 'B2'; if (s >= 7) return 'B1'; if (s >= 5) return 'A2'; if (s >= 3) return 'A1'; return 'Pre-A1';
 }
 
 function displayFeedback(fb) {
@@ -391,6 +371,9 @@ function displayFeedback(fb) {
     document.getElementById('feedbackContent').innerHTML = h;
 }
 
+// ============================================================
+// Utilities
+// ============================================================
 function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
 function showError(m) { const e = document.getElementById('errorMsg'); e.textContent = m; e.classList.add('visible'); }
 function hideError() { document.getElementById('errorMsg').classList.remove('visible'); }
@@ -405,7 +388,7 @@ function resetApp() {
 }
 
 // Init
-shuffleTopics(); changeTopic(); loadKeys();
+shuffleTopics(); changeTopic();
 </script>
 </body>
 </html>

@@ -1,0 +1,22 @@
+{
+  "name": "独り言英会話 - English Speaking Practice",
+  "short_name": "独り言英会話",
+  "description": "1分間の英語スピーキング練習アプリ",
+  "start_url": "/hitorigoto-english/",
+  "display": "standalone",
+  "background_color": "#f0f4fa",
+  "theme_color": "#2856a3",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
