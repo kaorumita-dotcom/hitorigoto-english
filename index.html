@@ -44,6 +44,11 @@
         .timer { font-size: 3.2rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--primary-dark); margin-bottom: 6px; }
         .recording-area.is-recording .timer { color: var(--recording); }
         .timer-label { font-size: 0.8rem; color: var(--text-light); margin-bottom: 24px; }
+        .time-selector { display: flex; justify-content: center; gap: 8px; margin-bottom: 16px; }
+        .time-btn { background: var(--primary-light); border: 1.5px solid var(--border); padding: 6px 14px; border-radius: 20px; font-size: 0.8rem; font-family: 'DM Sans', 'Noto Sans JP', sans-serif; color: var(--text-light); cursor: pointer; transition: all 0.2s; font-weight: 500; }
+        .time-btn:hover { border-color: var(--primary); color: var(--primary); }
+        .time-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+        .recording-area.is-recording .time-btn { opacity: 0.4; pointer-events: none; }
         .record-btn { width: 80px; height: 80px; border-radius: 50%; border: none; background: var(--primary); color: white; font-size: 1.8rem; cursor: pointer; transition: all 0.25s; display: flex; align-items: center; justify-content: center; margin: 0 auto; box-shadow: 0 4px 16px rgba(40, 86, 163, 0.3); }
         .record-btn:hover { transform: scale(1.06); box-shadow: 0 6px 24px rgba(40, 86, 163, 0.4); }
         .record-btn.recording { background: var(--recording); box-shadow: 0 4px 16px rgba(192, 57, 43, 0.3); animation: pulse 1.5s infinite; }
@@ -100,6 +105,12 @@
     <div class="error-msg" id="errorMsg"></div>
 
     <div class="recording-area" id="recordingArea">
+        <div class="time-selector">
+            <button class="time-btn" onclick="setDuration(30)">30秒</button>
+            <button class="time-btn" onclick="setDuration(40)">40秒</button>
+            <button class="time-btn" onclick="setDuration(50)">50秒</button>
+            <button class="time-btn active" onclick="setDuration(60)">60秒</button>
+        </div>
         <div class="timer" id="timer">1:00</div>
         <div class="timer-label">制限時間</div>
         <button class="record-btn" id="recordBtn" onclick="toggleRecording()">🎤</button>
@@ -177,8 +188,17 @@ function changeTopic() { currentTopicIndex = (currentTopicIndex + 1) % topics.le
 // Recording
 // ============================================================
 let mediaRecorder = null, audioChunks = [], audioStream = null, isRecording = false;
-let timerInterval = null, timeLeft = 60;
+let timerInterval = null, timeLeft = 60, duration = 60;
 let audioContext = null, analyser = null, animFrameId = null;
+
+function setDuration(sec) {
+    if (isRecording) return;
+    duration = sec;
+    timeLeft = sec;
+    updateTimerDisplay();
+    document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+}
 
 function toggleRecording() { isRecording ? stopRecording() : startRecording(); }
 
@@ -210,7 +230,7 @@ async function startRecording() {
     mediaRecorder.onerror = e => { console.error('MediaRecorder error:', e); };
     mediaRecorder.start();
     isRecording = true;
-    timeLeft = 60;
+    timeLeft = duration;
 
     // UI
     document.getElementById('recordingArea').classList.add('is-recording');
@@ -243,7 +263,7 @@ function stopRecording() {
 // Processing
 // ============================================================
 async function processRecording() {
-    const elapsed = 60 - timeLeft;
+    const elapsed = duration - timeLeft;
     if (audioChunks.length === 0) { showError('音声が録音できませんでした。'); resetButton(); return; }
 
     document.getElementById('processingCard').classList.add('visible');
@@ -383,7 +403,7 @@ function updateTimerDisplay() { const m = Math.floor(timeLeft/60), s = timeLeft%
 function resetApp() {
     document.getElementById('resultsSection').classList.remove('visible');
     document.getElementById('processingCard').classList.remove('visible');
-    timeLeft = 60; updateTimerDisplay(); audioChunks = []; resetButton(); changeTopic();
+    timeLeft = duration; updateTimerDisplay(); audioChunks = []; resetButton(); changeTopic();
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
