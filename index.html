@@ -193,73 +193,62 @@ let isRecording = false;
 let timerInterval = null;
 let timeLeft = 60;
 let duration = 60;
-let finalTranscriptText = '';
+let finalTranscriptText = '';  // 確定済みの累積テキスト
 let elapsedSeconds = 0;
-let lastResultIndex = 0;
 
-function initRecognition() {
+function startSpeechRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return null;
+
     const rec = new SpeechRecognition();
     rec.lang = 'en-US';
-    rec.continuous = true;
-    rec.interimResults = true;
+    rec.continuous = false;      // 一文節ごとに自動停止させる
+    rec.interimResults = false;  // 中間結果は一切取得しない（重複の原因を根本排除）
     rec.maxAlternatives = 1;
 
     rec.onresult = (event) => {
-        // 確定済みテキストを再構築（重複防止のため毎回全結果から再構築）
-        let final = '';
-        let interim = '';
-        for (let i = 0; i < event.results.length; i++) {
+        // 確定結果のみ累積—中間結果は完全無視
+        for (let i = event.resultIndex; i < event.results.length; i++) {
             if (event.results[i].isFinal) {
-                final += event.results[i][0].transcript + ' ';
-            } else {
-                interim += event.results[i][0].transcript;
+                finalTranscriptText += event.results[i][0].transcript + ' ';
             }
         }
-        finalTranscriptText = final;
         const liveEl = document.getElementById('liveTranscript');
-        liveEl.textContent = (final + interim).trim() || '話した内容がここに表示されます...';
+        liveEl.textContent = finalTranscriptText.trim() || '話した内容がここに表示されます...';
     };
 
     rec.onerror = (event) => {
-        if (event.error === 'no-speech') return;
+        if (event.error === 'no-speech') {
+            // 無音は無視して再起動
+            if (isRecording) restartRecognition();
+            return;
+        }
         if (event.error === 'not-allowed') {
             showError('マイクの使用が許可されていません。ブラウザの設定でマイクを許可してください。');
             forceStop();
         } else {
             console.warn('Speech recognition error:', event.error);
+            if (isRecording) restartRecognition();
         }
     };
 
     rec.onend = () => {
-        // 録音中なら再起動（途中で止まった場合の対策）
-        // 再起動時はresults配列がリセットされるため、確定済みテキストを退避して引き継ぐ
-        if (isRecording) {
-            const savedText = finalTranscriptText;
-            const newRec = initRecognition();
-            // 新しいrecognitionのonresultを上書きして退避テキストを先頭に付ける
-            const origOnResult = newRec.onresult;
-            newRec.onresult = (event) => {
-                let final = savedText;
-                let interim = '';
-                for (let i = 0; i < event.results.length; i++) {
-                    if (event.results[i].isFinal) {
-                        final += event.results[i][0].transcript + ' ';
-                    } else {
-                        interim += event.results[i][0].transcript;
-                    }
-                }
-                finalTranscriptText = final;
-                const liveEl = document.getElementById('liveTranscript');
-                liveEl.textContent = (final + interim).trim() || '話した内容がここに表示されます...';
-            };
-            recognition = newRec;
-            try { recognition.start(); } catch(e) {}
-        }
+        // continuous=falseなので一文節認識後に自動停止する—録音中なら即座に再起動
+        if (isRecording) restartRecognition();
     };
 
     return rec;
+}
+
+function restartRecognition() {
+    // 新しいインスタンスを作って再起動（前回の確定結果は finalTranscriptText に累積済み）
+    recognition = startSpeechRecognition();
+    if (!recognition) return;
+    try {
+        recognition.start();
+    } catch(e) {
+        console.warn('restart error:', e);
+    }
 }
 
 function setDuration(sec, btn) {
@@ -286,10 +275,9 @@ function startRecording() {
 
     finalTranscriptText = '';
     elapsedSeconds = 0;
-    lastResultIndex = 0;
     timeLeft = duration;
 
-    recognition = initRecognition();
+    recognition = startSpeechRecognition();
     try {
         recognition.start();
     } catch(e) {
@@ -317,11 +305,13 @@ function startRecording() {
 }
 
 function stopRecording() {
-    isRecording = false;
+    isRecording = false;  // 先に falseにすることで restartRecognition が呼ばれなくなる
     clearInterval(timerInterval);
 
     if (recognition) {
-        recognition.onend = null; // 再起動しないように
+        recognition.onend = null;
+        recognition.onresult = null;
+        recognition.onerror = null;
         try { recognition.stop(); } catch(e) {}
         recognition = null;
     }
@@ -334,7 +324,7 @@ function stopRecording() {
     document.getElementById('recordBtnLabel').textContent = '処理中...';
 
     // 少し待ってから結果表示（最後のonresultが来るのを待つ）
-    setTimeout(() => showResults(), 400);
+    setTimeout(() => showResults(), 600);
 }
 
 function forceStop() {
