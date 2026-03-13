@@ -194,8 +194,8 @@ let timerInterval = null;
 let timeLeft = 60;
 let duration = 60;
 let finalTranscriptText = '';
-let interimTranscriptText = '';
 let elapsedSeconds = 0;
+let lastResultIndex = 0;
 
 function initRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -207,18 +207,19 @@ function initRecognition() {
     rec.maxAlternatives = 1;
 
     rec.onresult = (event) => {
+        // 確定済みテキストを再構築（重複防止のため毎回全結果から再構築）
+        let final = '';
         let interim = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-            const t = event.results[i][0].transcript;
+        for (let i = 0; i < event.results.length; i++) {
             if (event.results[i].isFinal) {
-                finalTranscriptText += t + ' ';
+                final += event.results[i][0].transcript + ' ';
             } else {
-                interim += t;
+                interim += event.results[i][0].transcript;
             }
         }
-        interimTranscriptText = interim;
+        finalTranscriptText = final;
         const liveEl = document.getElementById('liveTranscript');
-        liveEl.textContent = (finalTranscriptText + interim).trim() || '話した内容がここに表示されます...';
+        liveEl.textContent = (final + interim).trim() || '話した内容がここに表示されます...';
     };
 
     rec.onerror = (event) => {
@@ -233,8 +234,28 @@ function initRecognition() {
 
     rec.onend = () => {
         // 録音中なら再起動（途中で止まった場合の対策）
+        // 再起動時はresults配列がリセットされるため、確定済みテキストを退避して引き継ぐ
         if (isRecording) {
-            try { rec.start(); } catch(e) {}
+            const savedText = finalTranscriptText;
+            const newRec = initRecognition();
+            // 新しいrecognitionのonresultを上書きして退避テキストを先頭に付ける
+            const origOnResult = newRec.onresult;
+            newRec.onresult = (event) => {
+                let final = savedText;
+                let interim = '';
+                for (let i = 0; i < event.results.length; i++) {
+                    if (event.results[i].isFinal) {
+                        final += event.results[i][0].transcript + ' ';
+                    } else {
+                        interim += event.results[i][0].transcript;
+                    }
+                }
+                finalTranscriptText = final;
+                const liveEl = document.getElementById('liveTranscript');
+                liveEl.textContent = (final + interim).trim() || '話した内容がここに表示されます...';
+            };
+            recognition = newRec;
+            try { recognition.start(); } catch(e) {}
         }
     };
 
@@ -264,8 +285,8 @@ function startRecording() {
     }
 
     finalTranscriptText = '';
-    interimTranscriptText = '';
     elapsedSeconds = 0;
+    lastResultIndex = 0;
     timeLeft = duration;
 
     recognition = initRecognition();
