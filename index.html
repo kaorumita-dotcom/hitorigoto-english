@@ -184,7 +184,7 @@ function changeTopic() {
 }
 
 // ============================================================
-// Web Speech API Recognition
+// Web Speech API Recognition — セッションID管理方式（SpeakUp Prep実装準拠）
 // ============================================================
 let recognition = null;
 let isRecording = false;
@@ -193,59 +193,73 @@ let timeLeft = 60;
 let duration = 60;
 let finalTranscriptText = '';  // 確定済みの累積テキスト
 let elapsedSeconds = 0;
+let currentSessionId = 0;      // セッションID：古いセッションの結果を排除する核心
 
-function startSpeechRecognition() {
+function startSession(sessionId) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) return null;
+    if (!SpeechRecognition || !isRecording) return;
+    // セッションIDが変わっていたら（古いセッション）は何もしない
+    if (sessionId !== currentSessionId) return;
 
     const rec = new SpeechRecognition();
+    recognition = rec;
     rec.lang = 'en-US';
-    rec.continuous = false;      // 一文節ごとに自動停止させる
-    rec.interimResults = false;  // 中間結果は一切取得しない（重複の原因を根本排除）
+    rec.continuous = false;      // 一文節ごとに自動停止（最も安定）
+    rec.interimResults = true;   // 中間結果を有効化（リアルタイム表示を復活）
     rec.maxAlternatives = 1;
 
     rec.onresult = (event) => {
-        // 確定結果のみ累積—中間結果は完全無視
+        // セッションIDチェック：古いセッションの結果は完全無視（重複防止の核心）
+        if (sessionId !== currentSessionId) return;
+
+        let interim = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
+            const t = event.results[i][0].transcript;
             if (event.results[i].isFinal) {
-                finalTranscriptText += event.results[i][0].transcript + ' ';
+                finalTranscriptText += t + ' ';
+            } else {
+                interim += t;
             }
         }
         const liveEl = document.getElementById('liveTranscript');
-        liveEl.textContent = finalTranscriptText.trim() || '話した内容がここに表示されます...';
+        // 確定済み + 中間結果を表示（中間結果は薄いスタイルで区別）
+        const confirmed = finalTranscriptText.trim();
+        if (interim) {
+            liveEl.innerHTML = (confirmed ? confirmed + ' ' : '') +
+                '<span style="opacity:0.5;font-style:italic">' + interim + '</span>';
+        } else {
+            liveEl.textContent = confirmed || '話した内容がここに表示されます...';
+        }
     };
 
     rec.onerror = (event) => {
-        if (event.error === 'no-speech') {
-            // 無音は無視して再起動
-            if (isRecording) restartRecognition();
-            return;
-        }
+        if (sessionId !== currentSessionId) return;
+        // no-speech / aborted は無視して自動再起動
+        if (event.error === 'no-speech' || event.error === 'aborted') return;
         if (event.error === 'not-allowed') {
             showError('マイクの使用が許可されていません。ブラウザの設定でマイクを許可してください。');
             forceStop();
         } else {
             console.warn('Speech recognition error:', event.error);
-            if (isRecording) restartRecognition();
         }
     };
 
     rec.onend = () => {
-        // continuous=falseなので一文節認識後に自動停止する—録音中なら即座に再起動
-        if (isRecording) restartRecognition();
+        if (sessionId !== currentSessionId) return;
+        // 録音中なら、abort完了を待って150ms後に再起動（競合防止）
+        if (isRecording) {
+            setTimeout(() => {
+                if (isRecording && sessionId === currentSessionId) {
+                    startSession(sessionId);
+                }
+            }, 150);
+        }
     };
 
-    return rec;
-}
-
-function restartRecognition() {
-    // 新しいインスタンスを作って再起動（前回の確定結果は finalTranscriptText に累積済み）
-    recognition = startSpeechRecognition();
-    if (!recognition) return;
     try {
-        recognition.start();
+        rec.start();
     } catch(e) {
-        console.warn('restart error:', e);
+        console.warn('recognition start error:', e);
     }
 }
 
@@ -275,15 +289,16 @@ function startRecording() {
     elapsedSeconds = 0;
     timeLeft = duration;
 
-    recognition = startSpeechRecognition();
-    try {
-        recognition.start();
-    } catch(e) {
-        showError('音声認識を開始できませんでした: ' + e.message);
-        return;
-    }
+    // 新しいセッションIDを発行（古いセッションの結果を自動無効化）
+    const newSessionId = currentSessionId + 1;
+    currentSessionId = newSessionId;
 
     isRecording = true;
+
+    // abort完了を待って150ms後に開始（競合防止）
+    setTimeout(() => {
+        startSession(newSessionId);
+    }, 150);
 
     // UI
     document.getElementById('recordingArea').classList.add('is-recording');
@@ -303,14 +318,12 @@ function startRecording() {
 }
 
 function stopRecording() {
-    isRecording = false;  // 先に falseにすることで restartRecognition が呼ばれなくなる
+    isRecording = false;  // 先に falseにすることで startSession の再起動が呼ばれなくなる
+    currentSessionId += 1; // セッションIDをインクリメントして古いセッションを完全無効化
     clearInterval(timerInterval);
 
     if (recognition) {
-        recognition.onend = null;
-        recognition.onresult = null;
-        recognition.onerror = null;
-        try { recognition.stop(); } catch(e) {}
+        try { recognition.abort(); } catch(e) {}
         recognition = null;
     }
 
@@ -327,10 +340,10 @@ function stopRecording() {
 
 function forceStop() {
     isRecording = false;
+    currentSessionId += 1; // セッションを無効化
     clearInterval(timerInterval);
     if (recognition) {
-        recognition.onend = null;
-        try { recognition.stop(); } catch(e) {}
+        try { recognition.abort(); } catch(e) {}
         recognition = null;
     }
     document.getElementById('recordingArea').classList.remove('is-recording');
