@@ -120,11 +120,29 @@
 
     <!-- テキスト入力エリア（文字入力モード） -->
     <div class="text-input-area" id="textInputArea" style="display:none;">
-        <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:12px;">トピックについて英語で書いてください。書き終わったら「結果を見る」を押してください。</p>
-        <textarea id="textInput" placeholder="Write your answer in English here..."
-            oninput="updateCharCount()"></textarea>
-        <div class="text-char-count"><span id="charCount">0</span> words</div>
-        <button class="text-submit-btn" onclick="submitText()">✅ 結果を見る</button>
+        <!-- 時間選択 + タイマー -->
+        <div class="time-selector" id="textTimeSelector">
+            <button class="time-btn" onclick="setTextDuration(30, this)">30秒</button>
+            <button class="time-btn" onclick="setTextDuration(40, this)">40秒</button>
+            <button class="time-btn" onclick="setTextDuration(50, this)">50秒</button>
+            <button class="time-btn active" onclick="setTextDuration(60, this)">60秒</button>
+        </div>
+        <div class="timer" id="textTimer" style="margin-bottom:6px;">1:00</div>
+        <div class="timer-label" style="margin-bottom:16px;" id="textTimerLabel">制限時間</div>
+
+        <!-- スタート前 -->
+        <div id="textStartArea">
+            <button class="text-submit-btn" style="background:var(--primary);" onclick="startTextTimer()">▶️ タイマーをスタート</button>
+        </div>
+
+        <!-- 入力エリア（タイマースタート後に表示） -->
+        <div id="textWriteArea" style="display:none;">
+            <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:10px;">トピックについて英語で書いてください。時間が来たら自動終了します。</p>
+            <textarea id="textInput" placeholder="Write your answer in English here..."
+                oninput="updateCharCount()"></textarea>
+            <div class="text-char-count"><span id="charCount">0</span> words</div>
+            <button class="text-submit-btn" onclick="submitText()">✅ 結果を見る</button>
+        </div>
     </div>
 
     <div class="recording-area" id="recordingArea">
@@ -634,9 +652,8 @@ function resetApp() {
     const btn = document.getElementById('recordBtn');
     btn.disabled = false;
     document.getElementById('recordBtnLabel').textContent = 'タップして開始';
-    // テキスト入力をクリア
-    document.getElementById('textInput').value = '';
-    document.getElementById('charCount').textContent = '0';
+    // テキストタイマーをリセット
+    stopTextTimer(true);
     // 文字起こしラベルを元に戻す
     document.getElementById('transcriptLabel').textContent = '🎙️ あなたのスピーチ（文字起こし）';
     hideError();
@@ -648,6 +665,10 @@ function resetApp() {
 // Mode switching (voice / text)
 // ============================================================
 let currentMode = 'voice';
+let textDuration = 60;
+let textTimeLeft = 60;
+let textTimerInterval = null;
+let textElapsedSeconds = 0;
 
 function switchMode(mode) {
     currentMode = mode;
@@ -665,6 +686,9 @@ function switchMode(mode) {
     // 録音中なら停止
     if (!isVoice && isRecording) forceStop();
 
+    // テキストタイマーが動いていれば停止
+    if (isVoice && textTimerInterval) stopTextTimer(true);
+
     // 結果をリセット
     document.getElementById('resultsSection').classList.remove('visible');
     hideError();
@@ -676,6 +700,74 @@ function updateCharCount() {
     document.getElementById('charCount').textContent = wc;
 }
 
+function setTextDuration(sec, btn) {
+    if (textTimerInterval) return;  // タイマー動作中は変更不可
+    textDuration = sec;
+    textTimeLeft = sec;
+    updateTextTimerDisplay();
+    document.querySelectorAll('#textTimeSelector .time-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+}
+
+function updateTextTimerDisplay() {
+    const m = Math.floor(textTimeLeft / 60), s = textTimeLeft % 60;
+    document.getElementById('textTimer').textContent = `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function startTextTimer() {
+    textTimeLeft = textDuration;
+    textElapsedSeconds = 0;
+    updateTextTimerDisplay();
+
+    // 時間選択ボタンを無効化
+    document.querySelectorAll('#textTimeSelector .time-btn').forEach(b => {
+        b.style.opacity = '0.4';
+        b.style.pointerEvents = 'none';
+    });
+
+    // スタートボタンを隠して入力エリアを表示
+    document.getElementById('textStartArea').style.display = 'none';
+    document.getElementById('textWriteArea').style.display = '';
+    document.getElementById('textInput').focus();
+
+    // タイマーラベルを「入力中」に変更
+    document.getElementById('textTimerLabel').textContent = '入力中...';
+    document.getElementById('textTimer').style.color = 'var(--recording)';
+
+    document.getElementById('resultsSection').classList.remove('visible');
+    hideError();
+
+    textTimerInterval = setInterval(() => {
+        textElapsedSeconds++;
+        textTimeLeft--;
+        updateTextTimerDisplay();
+        if (textTimeLeft <= 0) {
+            stopTextTimer(false);
+            submitText();
+        }
+    }, 1000);
+}
+
+function stopTextTimer(reset) {
+    clearInterval(textTimerInterval);
+    textTimerInterval = null;
+    if (reset) {
+        // リセット時は初期状態に戻す
+        textTimeLeft = textDuration;
+        updateTextTimerDisplay();
+        document.getElementById('textTimer').style.color = '';
+        document.getElementById('textTimerLabel').textContent = '制限時間';
+        document.querySelectorAll('#textTimeSelector .time-btn').forEach(b => {
+            b.style.opacity = '';
+            b.style.pointerEvents = '';
+        });
+        document.getElementById('textStartArea').style.display = '';
+        document.getElementById('textWriteArea').style.display = 'none';
+        document.getElementById('textInput').value = '';
+        document.getElementById('charCount').textContent = '0';
+    }
+}
+
 function submitText() {
     const text = document.getElementById('textInput').value.trim();
     if (!text) {
@@ -683,12 +775,10 @@ function submitText() {
         return;
     }
     hideError();
+    stopTextTimer(false);
 
-    // テキストモードでは「書いた時間」の概念がないため、語数から推定時間を算出
-    // WPM計算: 書いた語数を基準に、標準的な書き速度（30 WPM）で割った秒数を使用
-    const wc = countWords(text);
-    const estimatedSeconds = Math.max(wc / 30 * 60, 10);  // 最低10秒
-    elapsedSeconds = Math.round(estimatedSeconds);
+    // 実際の経過秒数を使用（タイマースタートからの経過時間）
+    elapsedSeconds = textElapsedSeconds > 0 ? textElapsedSeconds : textDuration;
 
     finalTranscriptText = text;
 
