@@ -520,56 +520,142 @@ function showResults() {
     }
     document.getElementById('cefrValue').textContent = cefr;
     document.getElementById('finalTranscript').textContent = transcript;
-    document.getElementById('feedbackContent').innerHTML = buildFeedback(wpm, cefr, wc, transcript);
+
+    // まずルールベースフィードバックを表示してから、LanguageTool APIで文法チェックを非同期実行
+    document.getElementById('feedbackContent').innerHTML = buildFeedback(wpm, cefr, wc, transcript, []);
 
     document.getElementById('resultsSection').classList.add('visible');
     const btn = document.getElementById('recordBtn');
     btn.disabled = false;
     document.getElementById('recordBtnLabel').textContent = 'タップして開始';
     document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    // LanguageTool APIで文法チェック（非同期、失敗しても結果は表示済み）
+    checkGrammar(transcript).then(errors => {
+        document.getElementById('feedbackContent').innerHTML = buildFeedback(wpm, cefr, wc, transcript, errors);
+    }).catch(() => {
+        // API失敗時はルールベースのまま表示継続
+    });
 }
 
 // ============================================================
-// Rule-based feedback (no API, no cost)
+// LanguageTool API 文法チェック
 // ============================================================
-function buildFeedback(wpm, cefr, wc, transcript) {
+async function checkGrammar(text) {
+    const res = await fetch('https://api.languagetool.org/v2/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ language: 'en-US', text: text })
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    // 重要度の高いエラーのみ抽出（スペル・文法カテゴリのみ）
+    return (data.matches || []).filter(m =>
+        m.rule && ['TYPOS', 'GRAMMAR', 'CONFUSED_WORDS'].includes(m.rule.category?.id)
+    ).slice(0, 3);  // 最大2件まで表示
+}
+
+// 文法エラーメッセージを日本語に変換
+function translateGrammarError(match) {
+    const msg = match.message || '';
+    const orig = match.context?.text?.substring(match.context.offset, match.context.offset + match.context.length) || '';
+    const suggest = match.replacements?.[0]?.value || '';
+
+    if (/third.person|non-third/i.test(msg)) {
+        return suggest ? `動詞の形に注意。「${orig}」は「${suggest}」にしてみましょう。` : '動詞の主語一致に注意しましょう。';
+    }
+    if (/verb.*missing|missing.*verb/i.test(msg)) {
+        return suggest ? `動詞が不足しています。「${orig}」は「${suggest}」が自然です。` : '動詞の使い方を確認してみましょう。';
+    }
+    if (/article|a\b|an\b|the\b/i.test(msg)) {
+        return suggest ? `冠詞の使い方に注意。「${orig}」は「${suggest}」が正しいです。` : '冠詞（a / an / the）の使い方を確認しましょう。';
+    }
+    if (/spell|typo/i.test(msg)) {
+        return suggest ? `スペルミスの可能性。「${orig}」は「${suggest}」ですか？` : `「${orig}」のスペルを確認してみましょう。`;
+    }
+    if (/tense/i.test(msg)) {
+        return suggest ? `時制に注意。「${orig}」は「${suggest}」が自然です。` : '時制の一貫性を確認してみましょう。';
+    }
+    // その他
+    return suggest ? `「${orig}」は「${suggest}」にするとより自然です。` : null;
+}
+
+// ============================================================
+// Feedback builder
+// ============================================================
+function buildFeedback(wpm, cefr, wc, transcript, grammarErrors) {
     const goodPoints = [];
     const tips = [];
 
-    // 語数・流暢さ
+    // --- 内容を褒めるフィードバック ---
+    // 文の数で内容の充実度を評価
+    const sentences = transcript.split(/[.!?]+/).filter(s => s.trim().length > 2);
+    const sentCount = sentences.length;
+
+    if (sentCount >= 4) {
+        goodPoints.push('複数の文で内容を充実させています。内容のまとまりがとても良いです！');
+    } else if (sentCount >= 2) {
+        goodPoints.push('複数の文を使って説明できています。');
+    } else if (sentCount === 1 && wc >= 5) {
+        goodPoints.push('トピックについて英語で説明できています！');
+    }
+
+    // 接続詞の使用
+    const connectors = ['because', 'so', 'but', 'however', 'although', 'also', 'and', 'therefore', 'for example', 'such as', 'in addition', 'moreover'];
+    const usedConnectors = connectors.filter(c => transcript.toLowerCase().includes(c));
+    if (usedConnectors.length >= 3) {
+        goodPoints.push(`「${usedConnectors.slice(0,2).join('」「')}」などの接続詞を上手に使っています。文の流れが自然です！`);
+    } else if (usedConnectors.length >= 1) {
+        goodPoints.push(`「${usedConnectors[0]}」などの接続詞を使っています。`);
+    } else if (wc >= 15) {
+        tips.push('「because」「however」「for example」などの接続詞を使うと、説明がより自然になります。');
+    }
+
+    // 具体的な詳細（固有名詞・数字・形容詞の使用）
+    const hasNumbers = /\b\d+\b/.test(transcript);
+    const adjectives = ['beautiful', 'amazing', 'great', 'wonderful', 'interesting', 'important', 'difficult', 'easy', 'fun', 'exciting', 'delicious', 'popular', 'famous', 'traditional', 'modern', 'unique', 'special'];
+    const usedAdj = adjectives.filter(a => transcript.toLowerCase().includes(a));
+    if (hasNumbers) {
+        goodPoints.push('具体的な数字や事実を使って説明できています。');
+    }
+    if (usedAdj.length >= 2) {
+        goodPoints.push(`「${usedAdj.slice(0,2).join('」「')}」などの形容詞を使って生き生きと表現できています！`);
+    }
+
+    // --- 語彙・流杈さ ---
+    const words = transcript.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+    const uniqueWords = new Set(words);
+    const lexDiv = wc > 0 ? uniqueWords.size / wc : 0;
+
     if (wpm >= 100) {
         goodPoints.push('スピーキングのスピードがとても良いです！ネイティブに近いペースで話せています。');
     } else if (wpm >= 60) {
         goodPoints.push('適切なペースで話せています。焦らず自分のリズムで続けましょう。');
     } else if (wpm >= 30) {
-        goodPoints.push('まずは話し始めることができました。練習を重ねるとどんどん流暢になります！');
+        goodPoints.push('まずは話し始めることができました。練習を重ねるとどんどん流杈になります！');
         tips.push('もう少しスピードを上げてみましょう。目標は60 WPM以上です。');
     } else {
         goodPoints.push('英語で話す練習を始めたことが大切です。続けることで必ず上達します！');
         tips.push('単語だけでも良いので、とにかく声に出す練習を続けましょう。');
     }
 
-    // 語彙の多様性
-    const words = transcript.toLowerCase().split(/\s+/).filter(w => w.length > 0);
-    const uniqueWords = new Set(words);
-    const lexDiv = wc > 0 ? uniqueWords.size / wc : 0;
-
     if (lexDiv >= 0.7 && wc >= 20) {
-        goodPoints.push('様々な語彙を使えています。語彙力が高いことが伝わります。');
-    } else if (lexDiv >= 0.5 && wc >= 10) {
-        goodPoints.push('いくつかの異なる表現を使えています。');
+        goodPoints.push('様々な語彙を使えています。語彙力の高さが伝わります！');
+    } else if (lexDiv < 0.45 && wc >= 10) {
         tips.push('同じ単語の繰り返しを減らすと、より自然な英語になります。');
-    } else if (wc >= 5) {
-        tips.push('知っている単語をもっと使ってみましょう。例えば形容詞や副詞を加えると表現が豊かになります。');
     }
 
-    // 文の長さ（文字数÷語数で平均単語長）
-    const avgWordLen = wc > 0 ? transcript.replace(/\s+/g, '').length / wc : 0;
-    if (avgWordLen >= 5.0 && wc >= 15) {
-        goodPoints.push('長めの単語も使えており、語彙の幅が感じられます。');
+    // --- LanguageTool 文法エラー ---
+    if (grammarErrors && grammarErrors.length > 0) {
+        grammarErrors.forEach(m => {
+            const msg = translateGrammarError(m);
+            if (msg) tips.push(msg);
+        });
+    } else if (grammarErrors && grammarErrors.length === 0 && wc >= 10) {
+        goodPoints.push('文法的なミスが少なく、正確な英語を使えています！');
     }
 
-    // CEFRレベル別メッセージ
+    // --- CEFR別激励メッセージ ---
     let encourage = '';
     if (cefr === 'B2') {
         encourage = '素晴らしい！B2レベルの英語力を発揮できています。このまま継続して、さらに上を目指しましょう！';
@@ -583,7 +669,7 @@ function buildFeedback(wpm, cefr, wc, transcript) {
         encourage = '英語で話す練習を始めたことが第一歩です。毎日続けることで必ず上達します！';
     }
 
-    // HTML構築
+    // --- HTML構築 ---
     let html = '';
     if (goodPoints.length > 0) {
         html += '<h3 style="font-size:0.9rem;font-weight:600;margin-bottom:10px;">✨ 良かった点</h3>';
