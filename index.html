@@ -78,6 +78,17 @@
         .error-msg { background: var(--recording-light); border: 1px solid var(--recording); border-radius: 10px; padding: 14px; font-size: 0.85rem; color: var(--recording); margin-bottom: 12px; display: none; }
         .error-msg.visible { display: block; }
         .browser-note { background: var(--primary-light); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-size: 0.78rem; color: var(--text-light); margin-bottom: 16px; text-align: center; }
+        .mode-tabs { display: flex; gap: 0; margin-bottom: 16px; background: var(--card); border-radius: var(--radius); padding: 4px; box-shadow: var(--shadow); border: 1px solid var(--border); }
+        .mode-tab { flex: 1; padding: 10px 8px; border: none; background: none; border-radius: 12px; font-size: 0.88rem; font-family: 'DM Sans', 'Noto Sans JP', sans-serif; font-weight: 500; color: var(--text-light); cursor: pointer; transition: all 0.2s; }
+        .mode-tab.active { background: var(--primary); color: white; box-shadow: 0 2px 8px rgba(40,86,163,0.25); }
+        .mode-tab:not(.active):hover { background: var(--primary-light); color: var(--primary); }
+        .text-input-area { background: var(--card); border-radius: var(--radius); padding: 24px; margin-bottom: 16px; box-shadow: var(--shadow); border: 1px solid var(--border); }
+        .text-input-area textarea { width: 100%; min-height: 140px; border: 1.5px solid var(--border); border-radius: 10px; padding: 12px 14px; font-size: 0.95rem; font-family: 'DM Sans', 'Noto Sans JP', sans-serif; color: var(--text); background: var(--bg); resize: vertical; line-height: 1.7; outline: none; transition: border-color 0.2s; }
+        .text-input-area textarea:focus { border-color: var(--primary); }
+        .text-input-area textarea::placeholder { color: var(--text-light); }
+        .text-submit-btn { display: block; width: 100%; margin-top: 14px; padding: 14px; background: var(--primary); color: white; border: none; border-radius: var(--radius); font-size: 1rem; font-weight: 600; font-family: 'DM Sans', 'Noto Sans JP', sans-serif; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 16px rgba(40,86,163,0.2); }
+        .text-submit-btn:hover { background: var(--primary-dark); transform: translateY(-1px); }
+        .text-char-count { text-align: right; font-size: 0.75rem; color: var(--text-light); margin-top: 6px; }
         footer { text-align: center; padding: 20px 0; font-size: 0.75rem; color: var(--text-light); }
         @media (max-width: 400px) { .timer { font-size: 2.6rem; } .container { padding: 12px 12px 30px; } }
     </style>
@@ -88,7 +99,13 @@
         <h1>🗣️ 独り言英会話<span>English Speaking Practice</span></h1>
     </header>
 
-    <div class="browser-note">
+    <!-- モード切り替えタブ -->
+    <div class="mode-tabs">
+        <button class="mode-tab active" id="tabVoice" onclick="switchMode('voice')">🎤 音声入力</button>
+        <button class="mode-tab" id="tabText" onclick="switchMode('text')">⌨️ 文字入力</button>
+    </div>
+
+    <div class="browser-note" id="browserNote">
         💡 このアプリはブラウザの音声認識を使用します。<strong>Chrome</strong>での使用を推奨します。
     </div>
 
@@ -100,6 +117,15 @@
     </div>
 
     <div class="error-msg" id="errorMsg"></div>
+
+    <!-- テキスト入力エリア（文字入力モード） -->
+    <div class="text-input-area" id="textInputArea" style="display:none;">
+        <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:12px;">トピックについて英語で書いてください。書き終わったら「結果を見る」を押してください。</p>
+        <textarea id="textInput" placeholder="Write your answer in English here..."
+            oninput="updateCharCount()"></textarea>
+        <div class="text-char-count"><span id="charCount">0</span> words</div>
+        <button class="text-submit-btn" onclick="submitText()">✅ 結果を見る</button>
+    </div>
 
     <div class="recording-area" id="recordingArea">
         <div class="time-selector">
@@ -131,7 +157,7 @@
             <div id="feedbackContent"></div>
         </div>
         <div class="result-card">
-            <h3>🎙️ あなたのスピーチ（文字起こし）</h3>
+            <h3 id="transcriptLabel">🎙️ あなたのスピーチ（文字起こし）</h3>
             <div class="transcript-text" id="finalTranscript"></div>
         </div>
         <button class="try-again-btn" onclick="resetApp()">🔄 もう一度チャレンジ</button>
@@ -466,7 +492,14 @@ function showResults() {
     const wpm = elapsed > 0 ? Math.round((wc / elapsed) * 60) : 0;
     const cefr = estimateCEFR(wpm, transcript);
 
-    document.getElementById('wpmValue').textContent = wpm;
+    // テキストモードの場合はWPMの代わりに語数を表示
+    if (currentMode === 'text') {
+        document.getElementById('wpmValue').textContent = wc;
+        document.querySelector('.stat-box:first-child .stat-label').textContent = '語数（Words）';
+    } else {
+        document.getElementById('wpmValue').textContent = wpm;
+        document.querySelector('.stat-box:first-child .stat-label').textContent = '語数 / 分';
+    }
     document.getElementById('cefrValue').textContent = cefr;
     document.getElementById('finalTranscript').textContent = transcript;
     document.getElementById('feedbackContent').innerHTML = buildFeedback(wpm, cefr, wc, transcript);
@@ -601,8 +634,68 @@ function resetApp() {
     const btn = document.getElementById('recordBtn');
     btn.disabled = false;
     document.getElementById('recordBtnLabel').textContent = 'タップして開始';
+    // テキスト入力をクリア
+    document.getElementById('textInput').value = '';
+    document.getElementById('charCount').textContent = '0';
+    // 文字起こしラベルを元に戻す
+    document.getElementById('transcriptLabel').textContent = '🎙️ あなたのスピーチ（文字起こし）';
+    hideError();
     changeTopic();
     window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============================================================
+// Mode switching (voice / text)
+// ============================================================
+let currentMode = 'voice';
+
+function switchMode(mode) {
+    currentMode = mode;
+    const isVoice = mode === 'voice';
+
+    // タブのアクティブ状態
+    document.getElementById('tabVoice').classList.toggle('active', isVoice);
+    document.getElementById('tabText').classList.toggle('active', !isVoice);
+
+    // 各エリアの表示切り替え
+    document.getElementById('recordingArea').style.display = isVoice ? '' : 'none';
+    document.getElementById('textInputArea').style.display = isVoice ? 'none' : '';
+    document.getElementById('browserNote').style.display = isVoice ? '' : 'none';
+
+    // 録音中なら停止
+    if (!isVoice && isRecording) forceStop();
+
+    // 結果をリセット
+    document.getElementById('resultsSection').classList.remove('visible');
+    hideError();
+}
+
+function updateCharCount() {
+    const text = document.getElementById('textInput').value.trim();
+    const wc = text.length > 0 ? text.split(/\s+/).filter(w => w.length > 0).length : 0;
+    document.getElementById('charCount').textContent = wc;
+}
+
+function submitText() {
+    const text = document.getElementById('textInput').value.trim();
+    if (!text) {
+        showError('英語を入力してください。');
+        return;
+    }
+    hideError();
+
+    // テキストモードでは「書いた時間」の概念がないため、語数から推定時間を算出
+    // WPM計算: 書いた語数を基準に、標準的な書き速度（30 WPM）で割った秒数を使用
+    const wc = countWords(text);
+    const estimatedSeconds = Math.max(wc / 30 * 60, 10);  // 最低10秒
+    elapsedSeconds = Math.round(estimatedSeconds);
+
+    finalTranscriptText = text;
+
+    // 結果ラベルを「入力テキスト」に変更
+    document.getElementById('transcriptLabel').textContent = '✏️ あなたの入力テキスト';
+
+    showResults();
 }
 
 // Init
